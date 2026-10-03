@@ -78,26 +78,48 @@ export default function App() {
     return <div style={{ padding: '20px', textAlign: 'center' }}>Načítám data z cloudu...</div>;
   }
 
-  // Aktuální měsíc (1-12)
-  const currentMonth = new Date().getMonth() + 1;
+  // --- LOGIKA FINANČNÍHO CYKLUS (10. - 9.) ---
+  const today = new Date();
+  const currentDay = today.getDate();
+  const currentMonth = today.getMonth() + 1; // 1-12
+  const currentYear = today.getFullYear();
 
-  // Filtr plateb určených pro tento měsíc
+  // Konec aktuálního cyklu je vždy 9. dne
+  let cycleEndDate: Date;
+  let mainCycleMonth: number; // Měsíc, ze kterého bereme sezónní platby
+
+  if (currentDay >= 10) {
+    // Jsme v prvním úseku cyklu (např. 10. říjen - 9. listopad)
+    cycleEndDate = new Date(currentYear, today.getMonth() + 1, 9);
+    mainCycleMonth = currentMonth;
+  } else {
+    // Jsme v druhém úseku cyklu (např. 1. říjen - 9. říjen, což je cyklus září-říjen)
+    cycleEndDate = new Date(currentYear, today.getMonth(), 9);
+    mainCycleMonth = currentMonth === 1 ? 12 : currentMonth - 1;
+  }
+
+  // Výpočet zbývajících dnů do konce cyklu (včetně dneška)
+  const diffTime = cycleEndDate.getTime() - new Date(today.getFullYear(), today.getMonth(), today.getDate()).getTime();
+  const daysLeft = Math.max(1, Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1);
+
+  // Filtr plateb pro tento cyklus podle měsíce
   const currentExpenses = expenses.filter(exp => {
     if (!exp.months || exp.months === 'všechny') return true;
     const allowedMonths = exp.months.split(',').map(m => parseInt(m.trim(), 10));
-    return allowedMonths.includes(currentMonth);
+    return allowedMonths.includes(mainCycleMonth);
+  });
+
+  // Řazení plateb tak, aby šly po sobě uvnitř cyklu (od 10. dne do 9. dne)
+  const sortedExpenses = [...currentExpenses].sort((a, b) => {
+    const dayA = a.day >= 10 ? a.day : a.day + 31;
+    const dayB = b.day >= 10 ? b.day : b.day + 31;
+    return dayA - dayB;
   });
 
   // Výpočty
   const totalInBanks = banks.reduce((acc, b) => acc + Number(b.balance || 0), 0);
-  const remainingToPay = currentExpenses.filter(e => !e.paid).reduce((acc, e) => acc + Number(e.amount || 0), 0);
+  const remainingToPay = sortedExpenses.filter(e => !e.paid).reduce((acc, e) => acc + Number(e.amount || 0), 0);
   const freeMoney = totalInBanks - remainingToPay;
-
-  // Výpočet zbývajících dnů v měsíci
-  const today = new Date();
-  const currentDay = today.getDate();
-  const lastDayOfMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate();
-  const daysLeft = Math.max(1, lastDayOfMonth - currentDay + 1);
   const freeMoneyPerDay = Math.round(freeMoney / daysLeft);
 
   return (
@@ -121,7 +143,7 @@ export default function App() {
           <h2>{freeMoney.toLocaleString()} Kč</h2>
         </div>
         <div style={{ background: '#bbf7d0', padding: '15px', borderRadius: '8px', textAlign: 'center' }}>
-          <small>Volné peníze na den ({daysLeft} dnů):</small>
+          <small>Na den ({daysLeft} dnů do 9.):</small>
           <h2>{freeMoneyPerDay.toLocaleString()} Kč/den</h2>
         </div>
       </div>
@@ -141,9 +163,9 @@ export default function App() {
         ))}
       </div>
 
-      <h3>Platby v tomto cyklu</h3>
+      <h3>Platby v cyklu (do 9.)</h3>
       <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-        {currentExpenses.map(exp => (
+        {sortedExpenses.map(exp => (
           <div 
             key={exp.id} 
             onClick={() => togglePaid(exp.id, exp.paid)}
