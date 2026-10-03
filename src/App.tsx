@@ -109,11 +109,11 @@ export default function App() {
     return allowedMonths.includes(mainCycleMonth);
   });
 
-  // Řazení plateb tak, aby šly po sobě uvnitř cyklu (od 10. dne do 9. dne)
+  // Řazení plateb tak, aby šly po sobě uvnitř cyklu (od 10. dne minulého měsíce do 9. dne tohoto měsíce)
   const sortedExpenses = [...currentExpenses].sort((a, b) => {
-    const dayA = a.day >= 10 ? a.day : a.day + 31;
-    const dayB = b.day >= 10 ? b.day : b.day + 31;
-    return dayA - dayB;
+    const orderA = a.day >= 10 ? a.day : a.day + 100;
+    const orderB = b.day >= 10 ? b.day : b.day + 100;
+    return orderA - orderB;
   });
 
   // Výpočty
@@ -163,7 +163,7 @@ export default function App() {
         ))}
       </div>
 
-      <h3>Platby v cyklu (do 9.)</h3>
+      <h3>Platby v tomto cyklu</h3>
       <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
         {sortedExpenses.map(exp => (
           <div 
