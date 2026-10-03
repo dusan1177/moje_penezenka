@@ -78,9 +78,19 @@ export default function App() {
     return <div style={{ padding: '20px', textAlign: 'center' }}>Načítám data z cloudu...</div>;
   }
 
+  // Aktuální měsíc (1-12)
+  const currentMonth = new Date().getMonth() + 1;
+
+  // Filtr plateb určených pro tento měsíc
+  const currentExpenses = expenses.filter(exp => {
+    if (!exp.months || exp.months === 'všechny') return true;
+    const allowedMonths = exp.months.split(',').map(m => parseInt(m.trim(), 10));
+    return allowedMonths.includes(currentMonth);
+  });
+
   // Výpočty
   const totalInBanks = banks.reduce((acc, b) => acc + Number(b.balance || 0), 0);
-  const remainingToPay = expenses.filter(e => !e.paid).reduce((acc, e) => acc + Number(e.amount || 0), 0);
+  const remainingToPay = currentExpenses.filter(e => !e.paid).reduce((acc, e) => acc + Number(e.amount || 0), 0);
   const freeMoney = totalInBanks - remainingToPay;
 
   // Výpočet zbývajících dnů v měsíci
@@ -133,7 +143,7 @@ export default function App() {
 
       <h3>Platby v tomto cyklu</h3>
       <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-        {expenses.map(exp => (
+        {currentExpenses.map(exp => (
           <div 
             key={exp.id} 
             onClick={() => togglePaid(exp.id, exp.paid)}
