@@ -21,21 +21,18 @@ export default function App() {
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // Načtení dat ze Supabase při spuštění
   useEffect(() => {
     fetchData();
   }, []);
 
   const fetchData = async () => {
     setLoading(true);
-    
-    // Načíst účty
+
     const { data: banksData, error: banksError } = await supabase
       .from('banks')
       .select('*')
       .order('id', { ascending: true });
 
-    // Načíst platby
     const { data: expensesData, error: expensesError } = await supabase
       .from('expenses')
       .select('*')
@@ -50,14 +47,11 @@ export default function App() {
     setLoading(false);
   };
 
-  // Přepnutí stavu zaplaceno / nezaplaceno
   const togglePaid = async (id: number, currentStatus: boolean) => {
     const newStatus = !currentStatus;
     
-    // Lokální aktualizace pro rychlou odezvu
     setExpenses(prev => prev.map(exp => exp.id === id ? { ...exp, paid: newStatus } : exp));
 
-    // Uložení do Supabase
     const { error } = await supabase
       .from('expenses')
       .update({ paid: newStatus })
@@ -65,11 +59,10 @@ export default function App() {
 
     if (error) {
       console.error('Chyba při ukládání:', error);
-      fetchData(); // Vracíme stav zpět při ошибce
+      fetchData();
     }
   };
 
-  // Změna zůstatku na účtu
   const updateBankBalance = async (id: number, newBalance: number) => {
     setBanks(prev => prev.map(b => b.id === id ? { ...b, balance: newBalance } : b));
 
@@ -85,9 +78,17 @@ export default function App() {
     return <div style={{ padding: '20px', textAlign: 'center' }}>Načítám data z cloudu...</div>;
   }
 
+  // Výpočty
   const totalInBanks = banks.reduce((acc, b) => acc + Number(b.balance || 0), 0);
   const remainingToPay = expenses.filter(e => !e.paid).reduce((acc, e) => acc + Number(e.amount || 0), 0);
   const freeMoney = totalInBanks - remainingToPay;
+
+  // Výpočet zbývajících dnů v měsíci
+  const today = new Date();
+  const currentDay = today.getDate();
+  const lastDayOfMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate();
+  const daysLeft = Math.max(1, lastDayOfMonth - currentDay + 1);
+  const freeMoneyPerDay = Math.round(freeMoney / daysLeft);
 
   return (
     <div style={{ maxWidth: '600px', margin: '0 auto', padding: '20px', fontFamily: 'sans-serif' }}>
@@ -104,9 +105,15 @@ export default function App() {
         </div>
       </div>
 
-      <div style={{ background: '#dcfce7', padding: '15px', borderRadius: '8px', textAlign: 'center', marginBottom: '20px' }}>
-        <small>Volné peníze:</small>
-        <h2>{freeMoney.toLocaleString()} Kč</h2>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '20px' }}>
+        <div style={{ background: '#dcfce7', padding: '15px', borderRadius: '8px', textAlign: 'center' }}>
+          <small>Volné peníze celkem:</small>
+          <h2>{freeMoney.toLocaleString()} Kč</h2>
+        </div>
+        <div style={{ background: '#bbf7d0', padding: '15px', borderRadius: '8px', textAlign: 'center' }}>
+          <small>Volné peníze na den ({daysLeft} dnů):</small>
+          <h2>{freeMoneyPerDay.toLocaleString()} Kč/den</h2>
+        </div>
       </div>
 
       <h3>Stav na účtech</h3>
