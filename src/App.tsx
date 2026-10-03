@@ -86,14 +86,12 @@ export default function App() {
 
   // Konec aktuálního cyklu je vždy 9. dne
   let cycleEndDate: Date;
-  let mainCycleMonth: number; // Měsíc, ze kterého bereme sezónní platby
+  let mainCycleMonth: number;
 
   if (currentDay >= 10) {
-    // Jsme v prvním úseku cyklu (např. 10. říjen - 9. listopad)
     cycleEndDate = new Date(currentYear, today.getMonth() + 1, 9);
     mainCycleMonth = currentMonth;
   } else {
-    // Jsme v druhém úseku cyklu (např. 1. říjen - 9. říjen, což je cyklus září-říjen)
     cycleEndDate = new Date(currentYear, today.getMonth(), 9);
     mainCycleMonth = currentMonth === 1 ? 12 : currentMonth - 1;
   }
@@ -109,8 +107,35 @@ export default function App() {
     return allowedMonths.includes(mainCycleMonth);
   });
 
-  // Řazení plateb tak, aby šly po sobě uvnitř cyklu (od 10. dne minulého měsíce do 9. dne tohoto měsíce)
-  const sortedExpenses = [...currentExpenses].sort((a, b) => {
+  // Pomocná funkce: Je platba podle kalendářního dne v cyklu již v minulosti?
+  const isPastInCycle = (expDay: number): boolean => {
+    if (currentDay >= 10) {
+      // Jsme v 1. části cyklu (10. až konce měsíce)
+      if (expDay >= 10) {
+        return expDay <= currentDay;
+      }
+      return false; // Platby 1.-9. jsou až příští měsíc
+    } else {
+      // Jsme ve 2. části cyklu (1. až 9. dne v měsíci)
+      if (expDay >= 10) {
+        return true; // Platby 10.-31. proběhly minulý měsíc
+      }
+      return expDay <= currentDay; // Platby 1.-9. proběhly, pokud expDay <= dnešek
+    }
+  };
+
+  // Seznam plateb s dopočítaným stavem zaplacení
+  const processedExpenses = currentExpenses.map(exp => {
+    const autoPaid = isPastInCycle(exp.day);
+    return {
+      ...exp,
+      // Platba je zaplacená, pokud je zaškrtnutá v DB nebo pokud její den v cyklu už proběhl
+      isPaidEffective: exp.paid || autoPaid
+    };
+  });
+
+  // Řazení plateb od začátku cyklu (10. den) po konec (9. den)
+  const sortedExpenses = [...processedExpenses].sort((a, b) => {
     const orderA = a.day >= 10 ? a.day : a.day + 100;
     const orderB = b.day >= 10 ? b.day : b.day + 100;
     return orderA - orderB;
@@ -118,7 +143,9 @@ export default function App() {
 
   // Výpočty
   const totalInBanks = banks.reduce((acc, b) => acc + Number(b.balance || 0), 0);
-  const remainingToPay = sortedExpenses.filter(e => !e.paid).reduce((acc, e) => acc + Number(e.amount || 0), 0);
+  const remainingToPay = sortedExpenses
+    .filter(e => !e.isPaidEffective)
+    .reduce((acc, e) => acc + Number(e.amount || 0), 0);
   const freeMoney = totalInBanks - remainingToPay;
   const freeMoneyPerDay = Math.round(freeMoney / daysLeft);
 
@@ -168,7 +195,7 @@ export default function App() {
         {sortedExpenses.map(exp => (
           <div 
             key={exp.id} 
-            onClick={() => togglePaid(exp.id, exp.paid)}
+            onClick={() => togglePaid(exp.id, exp.isPaidEffective)}
             style={{ 
               display: 'flex', 
               alignItems: 'center', 
@@ -177,13 +204,13 @@ export default function App() {
               border: '1px solid #ddd', 
               borderRadius: '5px',
               cursor: 'pointer',
-              background: exp.paid ? '#f3f4f6' : '#fff',
-              opacity: exp.paid ? 0.6 : 1
+              background: exp.isPaidEffective ? '#f3f4f6' : '#fff',
+              opacity: exp.isPaidEffective ? 0.6 : 1
             }}
           >
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-              <input type="checkbox" checked={exp.paid} readOnly />
-              <span style={{ textDecoration: exp.paid ? 'line-through' : 'none' }}>
+              <input type="checkbox" checked={exp.isPaidEffective} readOnly />
+              <span style={{ textDecoration: exp.isPaidEffective ? 'line-through' : 'none' }}>
                 {exp.day}. v měsíci - <strong>{exp.name}</strong>
               </span>
             </div>
