@@ -27,7 +27,6 @@ export default function App() {
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // Sledování relace Supabase Auth
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
@@ -59,7 +58,7 @@ export default function App() {
     });
 
     if (error) {
-      setAuthError('Nespravný e-mail nebo heslo.');
+      setAuthError('Nesprávný e-mail nebo heslo.');
       setLoading(false);
     }
   };
@@ -92,7 +91,7 @@ export default function App() {
 
   const togglePaid = async (id: number, currentStatus: boolean) => {
     const newStatus = !currentStatus;
-    
+
     setExpenses(prev => prev.map(exp => exp.id === id ? { ...exp, paid: newStatus } : exp));
 
     const { error } = await supabase
@@ -116,51 +115,6 @@ export default function App() {
 
     if (error) console.error('Chyba při úpravě zůstatku:', error);
   };
-
-  // --- ZOBRAZENÍ PŘIHLÁŠENÍ (pokud uživatel není přihlášen) ---
-  if (!session) {
-    return (
-      <div style={{ maxWidth: '350px', margin: '80px auto', padding: '24px', border: '1px solid #e5e7eb', borderRadius: '12px', fontFamily: 'sans-serif', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)' }}>
-        <h2 style={{ textAlign: 'center', marginBottom: '20px', color: '#111827' }}>Moje Peněženka</h2>
-        <form onSubmit={handleLogin} style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-          <div>
-            <label style={{ fontSize: '12px', color: '#374151', fontWeight: 'bold' }}>E-mail</label>
-            <input
-              type="email"
-              placeholder="vas@email.cz"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              required
-              style={{ width: '100%', padding: '10px', marginTop: '4px', borderRadius: '6px', border: '1px solid #d1d5db', boxSizing: 'border-box' }}
-            />
-          </div>
-          <div>
-            <label style={{ fontSize: '12px', color: '#374151', fontWeight: 'bold' }}>Heslo</label>
-            <input
-              type="password"
-              placeholder="••••••••"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-              style={{ width: '100%', padding: '10px', marginTop: '4px', borderRadius: '6px', border: '1px solid #d1d5db', boxSizing: 'border-box' }}
-            />
-          </div>
-          {authError && <p style={{ color: '#dc2626', fontSize: '13px', margin: '0' }}>{authError}</p>}
-          <button
-            type="submit"
-            disabled={loading}
-            style={{ padding: '12px', background: '#2563eb', color: '#fff', border: 'none', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer', marginTop: '8px' }}
-          >
-            {loading ? 'Přihlašování...' : 'Přihlásit se'}
-          </button>
-        </form>
-      </div>
-    );
-  }
-
-  if (loading) {
-    return <div style={{ padding: '20px', textAlign: 'center', fontFamily: 'sans-serif' }}>Načítám data z cloudu...</div>;
-  }
 
   // --- LOGIKA FINANČNÍHO CYKLUS (10. - 9.) ---
   const today = new Date();
@@ -216,83 +170,126 @@ export default function App() {
   const freeMoney = totalInBanks - remainingToPay;
   const freeMoneyPerDay = Math.round(freeMoney / daysLeft);
 
-  return (
-    <div style={{ maxWidth: '600px', margin: '0 auto', padding: '20px', fontFamily: 'sans-serif' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
-        <h2>Finanční Přehled</h2>
-        <button 
-          onClick={handleLogout}
-          style={{ padding: '6px 12px', background: '#f3f4f6', border: '1px solid #d1d5db', borderRadius: '6px', cursor: 'pointer', fontSize: '13px' }}
-        >
-          Odhlásit
-        </button>
-      </div>
-
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '20px' }}>
-        <div style={{ background: '#e0f2fe', padding: '15px', borderRadius: '8px', textAlign: 'center' }}>
-          <small>Celkem na účtech:</small>
-          <h3>{totalInBanks.toLocaleString()} Kč</h3>
-        </div>
-        <div style={{ background: '#fef3c7', padding: '15px', borderRadius: '8px', textAlign: 'center' }}>
-          <small>Zbývá doplatit:</small>
-          <h3>{remainingToPay.toLocaleString()} Kč</h3>
-        </div>
-      </div>
-
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '20px' }}>
-        <div style={{ background: '#dcfce7', padding: '15px', borderRadius: '8px', textAlign: 'center' }}>
-          <small>Volné peníze celkem:</small>
-          <h2>{freeMoney.toLocaleString()} Kč</h2>
-        </div>
-        <div style={{ background: '#bbf7d0', padding: '15px', borderRadius: '8px', textAlign: 'center' }}>
-          <small>Na den ({daysLeft} dnů do 9.):</small>
-          <h2>{freeMoneyPerDay.toLocaleString()} Kč/den</h2>
-        </div>
-      </div>
-
-      <h3>Stav na účtech</h3>
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '20px' }}>
-        {banks.map(bank => (
-          <div key={bank.id} style={{ border: '1px solid #ccc', padding: '10px', borderRadius: '5px' }}>
-            <label style={{ display: 'block', fontSize: '12px', color: '#666' }}>{bank.name}</label>
+  // --- ZOBRAZENÍ PŘIHLÁŠENÍ ---
+  if (!session) {
+    return (
+      <div className="wrap" style={{ maxWidth: '400px', paddingTop: '100px' }}>
+        <header style={{ justifyContent: 'center', borderBottom: 'none', marginBottom: '24px' }}>
+          <h1>Finanční přehled</h1>
+        </header>
+        <form onSubmit={handleLogin} style={{ display: 'flex', flexDirection: 'column', gap: '16px', background: 'var(--bg-card)', padding: '28px', borderRadius: '6px', border: '1px solid var(--line)' }}>
+          <div>
+            <label className="label">E-mail</label>
             <input
-              type="number"
-              value={bank.balance}
-              onChange={(e) => updateBankBalance(bank.id, Number(e.target.value))}
-              style={{ width: '100%', padding: '5px', boxSizing: 'border-box' }}
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              required
+              style={{ width: '100%', background: 'var(--bg)', border: '1px solid var(--line)', color: 'var(--text)', padding: '10px 12px', borderRadius: '4px', fontSize: '15px' }}
             />
           </div>
-        ))}
+          <div>
+            <label className="label">Heslo</label>
+            <input
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              required
+              style={{ width: '100%', background: 'var(--bg)', border: '1px solid var(--line)', color: 'var(--text)', padding: '10px 12px', borderRadius: '4px', fontSize: '15px' }}
+            />
+          </div>
+          {authError && <p style={{ color: '#ef4444', fontSize: '13px', margin: 0 }}>{authError}</p>}
+          <button
+            type="submit"
+            disabled={loading}
+            className="logout"
+            style={{ width: '100%', marginTop: '8px', padding: '12px', fontSize: '15px', background: 'var(--amber)', color: '#1c1e26', fontWeight: 600, border: 'none' }}
+          >
+            {loading ? 'Načítám...' : 'Přihlásit se'}
+          </button>
+        </form>
+      </div>
+    );
+  }
+
+  if (loading) {
+    return (
+      <div className="wrap" style={{ textAlign: 'center', paddingTop: '120px' }}>
+        <p className="label">Načítám finanční data...</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="wrap">
+      <header>
+        <h1>Finanční přehled</h1>
+        <button onClick={handleLogout} className="logout">Odhlásit</button>
+      </header>
+
+      <div className="hero">
+        <div className="hero-main">
+          <p className="label">Volné peníze celkem</p>
+          <p className="big-number">
+            {freeMoney.toLocaleString('cs-CZ')}<sup>Kč</sup>
+          </p>
+          <p className="sub-note">
+            {freeMoneyPerDay.toLocaleString('cs-CZ')} Kč/den · zbývá {daysLeft} {daysLeft === 1 ? 'den' : (daysLeft >= 2 && daysLeft <= 4 ? 'dny' : 'dnů')} do 9.
+          </p>
+        </div>
+        <div className="hero-side">
+          <div>
+            <p className="label">Celkem na účtech</p>
+            <p className="mid-number">{totalInBanks.toLocaleString('cs-CZ')} Kč</p>
+          </div>
+          <div>
+            <p className="label">Zbývá doplatit</p>
+            <p className="mid-number amber">{remainingToPay.toLocaleString('cs-CZ')} Kč</p>
+          </div>
+        </div>
       </div>
 
-      <h3>Platby v tomto cyklu</h3>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-        {sortedExpenses.map(exp => (
-          <div 
-            key={exp.id} 
-            onClick={() => togglePaid(exp.id, exp.isPaidEffective)}
-            style={{ 
-              display: 'flex', 
-              alignItems: 'center', 
-              justifyContent: 'space-between', 
-              padding: '10px', 
-              border: '1px solid #ddd', 
-              borderRadius: '5px',
-              cursor: 'pointer',
-              background: exp.isPaidEffective ? '#f3f4f6' : '#fff',
-              opacity: exp.isPaidEffective ? 0.6 : 1
-            }}
-          >
-            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-              <input type="checkbox" checked={exp.isPaidEffective} readOnly />
-              <span style={{ textDecoration: exp.isPaidEffective ? 'line-through' : 'none' }}>
-                {exp.day}. v měsíci - <strong>{exp.name}</strong>
-              </span>
+      <section>
+        <h2>Stav na účtech</h2>
+        <div className="accounts">
+          {banks.map(bank => (
+            <div key={bank.id} className="account">
+              <div className="account-name">{bank.name}</div>
+              <div className="account-input-row">
+                <input
+                  type="number"
+                  value={bank.balance}
+                  onChange={(e) => updateBankBalance(bank.id, Number(e.target.value))}
+                />
+                <span className="account-currency">Kč</span>
+              </div>
             </div>
-            <strong>{exp.amount.toLocaleString()} Kč</strong>
-          </div>
-        ))}
-      </div>
+          ))}
+        </div>
+      </section>
+
+      <section>
+        <h2>
+          Platby v tomto cyklu <span className="count">{sortedExpenses.length} položek</span>
+        </h2>
+        <div className="payments">
+          {sortedExpenses.map(exp => (
+            <div
+              key={exp.id}
+              className={`payment ${exp.isPaidEffective ? 'done' : ''}`}
+              onClick={() => togglePaid(exp.id, exp.isPaidEffective)}
+              style={{ cursor: 'pointer' }}
+            >
+              <div className={`check ${exp.isPaidEffective ? 'checked' : ''}`}></div>
+              <div className="payment-date">{exp.day}.</div>
+              <div className="payment-name">{exp.name}</div>
+              <div className="payment-amount">{exp.amount.toLocaleString('cs-CZ')} Kč</div>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      <footer>Ruční přehled rodinných financí</footer>
     </div>
   );
 }
