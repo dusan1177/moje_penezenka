@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { supabase } from './supabaseClient';
 import type { Session } from '@supabase/supabase-js';
+import KidsPage from './KidsPage';
 
 interface BankAccount {
   id: number;
@@ -27,12 +28,18 @@ export default function App() {
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [loading, setLoading] = useState(true);
 
+  // Stav pro přepínání záložek: 'main' = Finanční přehled, 'kluci' = Podstránka Kluci
+  const [activeTab, setActiveTab] = useState<'main' | 'kluci'>('main');
+
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
-      if (session) fetchData();
-      else setLoading(false);
-    });
+      if (session) {
+        fetchData();
+      } else {
+        setLoading(false);
+      }
+    }).catch(() => setLoading(false));
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session);
@@ -41,6 +48,7 @@ export default function App() {
       } else {
         setBanks([]);
         setExpenses([]);
+        setLoading(false);
       }
     });
 
@@ -70,23 +78,27 @@ export default function App() {
   const fetchData = async () => {
     setLoading(true);
 
-    const { data: banksData, error: banksError } = await supabase
-      .from('banks')
-      .select('*')
-      .order('id', { ascending: true });
+    try {
+      const { data: banksData, error: banksError } = await supabase
+        .from('banks')
+        .select('*')
+        .order('id', { ascending: true });
 
-    const { data: expensesData, error: expensesError } = await supabase
-      .from('expenses')
-      .select('*')
-      .order('day', { ascending: true });
+      const { data: expensesData, error: expensesError } = await supabase
+        .from('expenses')
+        .select('*')
+        .order('day', { ascending: true });
 
-    if (banksError) console.error('Chyba při načítání účtů:', banksError);
-    if (expensesError) console.error('Chyba při načítání plateb:', expensesError);
+      if (banksError) console.error('Chyba při načítání účtů:', banksError);
+      if (expensesError) console.error('Chyba při načítání plateb:', expensesError);
 
-    if (banksData) setBanks(banksData);
-    if (expensesData) setExpenses(expensesData);
-
-    setLoading(false);
+      if (banksData) setBanks(banksData);
+      if (expensesData) setExpenses(expensesData);
+    } catch (err) {
+      console.error('Chyba komunikace s databází:', err);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const togglePaid = async (id: number, currentStatus: boolean) => {
@@ -116,11 +128,11 @@ export default function App() {
     if (error) console.error('Chyba při úpravě zůstatku:', error);
   };
 
-  // --- FILTRACE BANK DLE POŽADAVKU ---
-  // AirBank zůstává v Supabase databázi, ale zde ji skryjeme pro symetrii mřížky
-  const visibleBanks = banks.filter(
-    (bank) => bank.name.toLowerCase().replace(/\s+/g, '') !== 'airbank'
-  );
+  // --- FILTRACE BANK ---
+  const visibleBanks = banks.filter((bank) => {
+    if (!bank || !bank.name) return true;
+    return bank.name.toLowerCase().replace(/\s+/g, '') !== 'airbank';
+  });
 
   // --- LOGIKA FINANČNÍHO CYKLUS (10. - 9.) ---
   const today = new Date();
@@ -169,7 +181,6 @@ export default function App() {
     return orderA - orderB;
   });
 
-  // Počítáme jen ze zobrazených bank
   const totalInBanks = visibleBanks.reduce((acc, b) => acc + Number(b.balance || 0), 0);
   const remainingToPay = sortedExpenses
     .filter(e => !e.isPaidEffective)
@@ -177,7 +188,7 @@ export default function App() {
   const freeMoney = totalInBanks - remainingToPay;
   const freeMoneyPerDay = Math.round(freeMoney / daysLeft);
 
-  // 1. NEHLAVNÍ RETURN: Přihlašovací formulář
+  // --- ZOBRAZENÍ PŘIHLÁŠENÍ ---
   if (!session) {
     return (
       <div className="wrap" style={{ maxWidth: '400px', paddingTop: '100px' }}>
@@ -219,7 +230,7 @@ export default function App() {
     );
   }
 
-  // 2. NEHLAVNÍ RETURN: Načítání
+  // --- ZOBRAZENÍ NAČÍTÁNÍ ---
   if (loading) {
     return (
       <div className="wrap" style={{ textAlign: 'center', paddingTop: '120px' }}>
@@ -228,75 +239,107 @@ export default function App() {
     );
   }
 
-  // 3. HLAVNÍ RETURN (Tohle je ta vizuální JSX šablona)
+  // --- HLAVNÍ APLIKACE ---
   return (
     <div className="wrap">
-      <header>
-        <h1>Finanční přehled</h1>
+      {/* HLAVIČKA S PREPÍNÁNÍM ZÁLOŽEK */}
+      <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '24px' }}>
+          <h1
+            onClick={() => setActiveTab('main')}
+            style={{
+              cursor: 'pointer',
+              margin: 0,
+              color: activeTab === 'main' ? 'var(--text)' : 'var(--text-dim)',
+              transition: 'color 0.2s',
+            }}
+          >
+            Finanční přehled
+          </h1>
+          <span
+            onClick={() => setActiveTab('kluci')}
+            style={{
+              cursor: 'pointer',
+              fontSize: '20px',
+              fontWeight: 700,
+              color: activeTab === 'kluci' ? 'var(--amber)' : 'var(--text-dim)',
+              transition: 'color 0.2s',
+            }}
+          >
+            Kluci
+          </span>
+        </div>
         <button onClick={handleLogout} className="logout">Odhlásit</button>
       </header>
 
-      <div className="hero">
-        <div className="hero-main">
-          <p className="label">Volné peníze celkem</p>
-          <p className="big-number">
-            {freeMoney.toLocaleString('cs-CZ')}<sup>Kč</sup>
-          </p>
-          <p className="sub-note">
-            {freeMoneyPerDay.toLocaleString('cs-CZ')} Kč/den · zbývá {daysLeft} {daysLeft === 1 ? 'den' : (daysLeft >= 2 && daysLeft <= 4 ? 'dny' : 'dnů')} do 9.
-          </p>
-        </div>
-        <div className="hero-side">
-          <div>
-            <p className="label">Celkem na účtech</p>
-            <p className="mid-number">{totalInBanks.toLocaleString('cs-CZ')} Kč</p>
-          </div>
-          <div>
-            <p className="label">Zbývá doplatit</p>
-            <p className="mid-number amber">{remainingToPay.toLocaleString('cs-CZ')} Kč</p>
-          </div>
-        </div>
-      </div>
-
-      <section>
-        <h2>Stav na účtech</h2>
-        <div className="accounts">
-          {visibleBanks.map(bank => (
-            <div key={bank.id} className="account">
-              <div className="account-name">{bank.name}</div>
-              <div className="account-input-row">
-                <input
-                  type="number"
-                  value={bank.balance}
-                  onChange={(e) => updateBankBalance(bank.id, Number(e.target.value))}
-                />
-                <span className="account-currency">Kč</span>
+      {/* OBSAH PODLE ZVOLENÉ ZÁLOŽKY */}
+      {activeTab === 'kluci' ? (
+        <KidsPage />
+      ) : (
+        <>
+          <div className="hero">
+            <div className="hero-main">
+              <p className="label">Volné peníze celkem</p>
+              <p className="big-number">
+                {freeMoney.toLocaleString('cs-CZ')}<sup>Kč</sup>
+              </p>
+              <p className="sub-note">
+                {freeMoneyPerDay.toLocaleString('cs-CZ')} Kč/den · zbývá {daysLeft} {daysLeft === 1 ? 'den' : (daysLeft >= 2 && daysLeft <= 4 ? 'dny' : 'dnů')} do 9.
+              </p>
+            </div>
+            <div className="hero-side">
+              <div>
+                <p className="label">Celkem na účtech</p>
+                <p className="mid-number">{totalInBanks.toLocaleString('cs-CZ')} Kč</p>
+              </div>
+              <div>
+                <p className="label">Zbývá doplatit</p>
+                <p className="mid-number amber">{remainingToPay.toLocaleString('cs-CZ')} Kč</p>
               </div>
             </div>
-          ))}
-        </div>
-      </section>
+          </div>
 
-      <section>
-        <h2>
-          Platby v tomto cyklu <span className="count">{sortedExpenses.length} položek</span>
-        </h2>
-        <div className="payments">
-          {sortedExpenses.map(exp => (
-            <div
-              key={exp.id}
-              className={`payment ${exp.isPaidEffective ? 'done' : ''}`}
-              onClick={() => togglePaid(exp.id, exp.isPaidEffective)}
-              style={{ cursor: 'pointer' }}
-            >
-              <div className={`check ${exp.isPaidEffective ? 'checked' : ''}`}></div>
-              <div className="payment-date">{exp.day}.</div>
-              <div className="payment-name">{exp.name}</div>
-              <div className="payment-amount">{exp.amount.toLocaleString('cs-CZ')} Kč</div>
+          <section>
+            <h2>Stav na účtech</h2>
+            <div className="accounts">
+              {visibleBanks.map(bank => (
+                <div key={bank.id} className="account">
+                  <div className="account-name">{bank.name}</div>
+                  <div className="account-input-row">
+                    <input
+                      type="number"
+                      value={bank.balance}
+                      onChange={(e) => updateBankBalance(bank.id, Number(e.target.value))}
+                    />
+                    <span className="account-currency">Kč</span>
+                  </div>
+                </div>
+              ))}
             </div>
-          ))}
-        </div>
-      </section>
+          </section>
+
+          <section>
+            <h2>
+              Platby v tomto cyklu <span className="count">{sortedExpenses.length} položek</span>
+            </h2>
+            <div className="payments">
+              {sortedExpenses.map(exp => (
+                <div
+                  key={exp.id}
+                  className={`payment ${exp.isPaidEffective ? 'done' : ''}`}
+                  onClick={() => togglePaid(exp.id, exp.isPaidEffective)}
+                  style={{ cursor: 'pointer' }}
+                >
+                  <div className={`check ${exp.isPaidEffective ? 'checked' : ''}`}></div>
+                  <div className="payment-date">{exp.day}.</div>
+                  <div className="payment-name">{exp.name}</div>
+                  <div className="payment-amount">{exp.amount.toLocaleString('cs-CZ')} Kč</div>
+                </div>
+              ))}
+            </div>
+          </section>
+        </>
+      )}
 
       <footer>Ruční přehled rodinných financí</footer>
     </div>
