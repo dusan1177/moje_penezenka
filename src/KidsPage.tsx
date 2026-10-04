@@ -225,6 +225,10 @@ function renderMonthCard(
   const totalExpenses = (m.expenses || []).reduce((acc, curr) => acc + Number(curr.amount || 0), 0);
   const toPay = m.allowance - totalExpenses / 2;
 
+  // Barva textu pro vyřízený měsíc vs. běžný stav
+  const itemTextColor = m.is_closed ? '#86efac' : 'var(--text)';
+  const labelTextColor = m.is_closed ? '#86efac' : 'var(--text-dim)';
+
   return (
     <div
       key={m.id}
@@ -258,6 +262,7 @@ function renderMonthCard(
         </button>
       </div>
 
+      {/* Seznam výdajů */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginBottom: '12px' }}>
         {(m.expenses || []).map((exp) => (
           <div
@@ -267,8 +272,9 @@ function renderMonthCard(
               justifyContent: 'space-between',
               alignItems: 'center',
               fontSize: '14px',
-              borderBottom: '1px solid var(--line)',
+              borderBottom: `1px solid ${m.is_closed ? '#1e4620' : 'var(--line)'}`,
               paddingBottom: '4px',
+              color: itemTextColor, // Světle zelená barva při vyřízení
             }}
           >
             <span>{exp.title}</span>
@@ -295,6 +301,7 @@ function renderMonthCard(
         ))}
       </div>
 
+      {/* Formulář pro přidání položky */}
       {!m.is_closed && (
         <form
           onSubmit={(e) => handleAddExpense(m.id, e)}
@@ -348,8 +355,9 @@ function renderMonthCard(
         </form>
       )}
 
-      <div style={{ paddingTop: '8px', borderTop: '1px solid var(--line)', fontSize: '13px' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--text-dim)', marginBottom: '4px' }}>
+      {/* Souhrnné řádky */}
+      <div style={{ paddingTop: '8px', borderTop: `1px solid ${m.is_closed ? '#1e4620' : 'var(--line)'}`, fontSize: '13px' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', color: labelTextColor, marginBottom: '4px' }}>
           <span>Příspěvek na kluky:</span>
           <span>{m.allowance.toLocaleString('cs-CZ')} Kč</span>
         </div>
