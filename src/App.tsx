@@ -1,4 +1,3 @@
-import './index.css';
 import { useState, useEffect } from 'react';
 import { supabase } from './supabaseClient';
 import type { Session } from '@supabase/supabase-js';
@@ -117,6 +116,12 @@ export default function App() {
     if (error) console.error('Chyba při úpravě zůstatku:', error);
   };
 
+  // --- FILTRACE BANK DLE POŽADAVKU ---
+  // AirBank zůstává v Supabase databázi, ale zde ji skryjeme pro symetrii mřížky
+  const visibleBanks = banks.filter(
+    (bank) => bank.name.toLowerCase().replace(/\s+/g, '') !== 'airbank'
+  );
+
   // --- LOGIKA FINANČNÍHO CYKLUS (10. - 9.) ---
   const today = new Date();
   const currentDay = today.getDate();
@@ -164,14 +169,15 @@ export default function App() {
     return orderA - orderB;
   });
 
-  const totalInBanks = banks.reduce((acc, b) => acc + Number(b.balance || 0), 0);
+  // Počítáme jen ze zobrazených bank
+  const totalInBanks = visibleBanks.reduce((acc, b) => acc + Number(b.balance || 0), 0);
   const remainingToPay = sortedExpenses
     .filter(e => !e.isPaidEffective)
     .reduce((acc, e) => acc + Number(e.amount || 0), 0);
   const freeMoney = totalInBanks - remainingToPay;
   const freeMoneyPerDay = Math.round(freeMoney / daysLeft);
 
-  // --- ZOBRAZENÍ PŘIHLÁŠENÍ ---
+  // 1. NEHLAVNÍ RETURN: Přihlašovací formulář
   if (!session) {
     return (
       <div className="wrap" style={{ maxWidth: '400px', paddingTop: '100px' }}>
@@ -213,6 +219,7 @@ export default function App() {
     );
   }
 
+  // 2. NEHLAVNÍ RETURN: Načítání
   if (loading) {
     return (
       <div className="wrap" style={{ textAlign: 'center', paddingTop: '120px' }}>
@@ -221,6 +228,7 @@ export default function App() {
     );
   }
 
+  // 3. HLAVNÍ RETURN (Tohle je ta vizuální JSX šablona)
   return (
     <div className="wrap">
       <header>
@@ -253,7 +261,7 @@ export default function App() {
       <section>
         <h2>Stav na účtech</h2>
         <div className="accounts">
-          {banks.map(bank => (
+          {visibleBanks.map(bank => (
             <div key={bank.id} className="account">
               <div className="account-name">{bank.name}</div>
               <div className="account-input-row">
