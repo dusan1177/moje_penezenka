@@ -87,20 +87,33 @@ export function InvestmentsPage() {
         setInvestments(formattedInv);
       }
 
-      // 3. Ondrovy dluhy a splátky
+      // 3. Ondrovy dluhy a splátky (s auto-vytvořením, pokud je tabulka prázdná)
       const { data: oDebtsData } = await supabase.from('ondra_debts').select('*').limit(1);
-      if (oDebtsData && oDebtsData.length > 0) {
+      let currentOndraDebt = oDebtsData && oDebtsData.length > 0 ? oDebtsData[0] : null;
+
+      if (!currentOndraDebt) {
+        const { data: createdDebt } = await supabase
+          .from('ondra_debts')
+          .insert([{ title: 'Ondra dluh', original_amount: 15500 }])
+          .select();
+        
+        if (createdDebt && createdDebt[0]) {
+          currentOndraDebt = createdDebt[0];
+        }
+      }
+
+      if (currentOndraDebt) {
         setOndraDebt({
-          id: oDebtsData[0].id,
-          title: oDebtsData[0].title,
-          originalAmount: oDebtsData[0].original_amount,
-          note: oDebtsData[0].note || '',
+          id: currentOndraDebt.id,
+          title: currentOndraDebt.title,
+          originalAmount: currentOndraDebt.original_amount,
+          note: currentOndraDebt.note || '',
         });
 
         const { data: oPayData } = await supabase
           .from('ondra_payments')
           .select('*')
-          .eq('ondra_debt_id', oDebtsData[0].id)
+          .eq('ondra_debt_id', currentOndraDebt.id)
           .order('id');
 
         if (oPayData) {
@@ -438,7 +451,7 @@ export function InvestmentsPage() {
         </form>
       </section>
 
-      {/* 3. ODDÍL: ONDRA DLUHY */}
+      {/* 3. ODDÍL: ONDRA DLUH */}
       <section className="bg-white p-6 rounded-xl shadow-md space-y-4">
         <div className="flex justify-between items-center border-b pb-3">
           <h2 className="text-xl font-semibold text-orange-600">3. Ondra dluh</h2>
