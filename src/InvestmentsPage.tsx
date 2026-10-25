@@ -17,32 +17,20 @@ interface Investment {
   note: string;
 }
 
-interface PaymentItem {
-  id: number;
-  ondra_debt_id: number;
-  amount: number;
-  date: string;
-}
-
-interface OndraDebt {
-  id: number;
-  title: string;
-  originalAmount: number;
-  note: string;
-  payments: PaymentItem[];
-}
-
 export function InvestmentsPage() {
   const [debts, setDebts] = useState<Debt[]>([]);
   const [investments, setInvestments] = useState<Investment[]>([]);
-  const [ondraDebts, setOndraDebts] = useState<OndraDebt[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // Stavy pro formuláře
-  const [newDebt, setNewDebt] = useState({ name: '', amount: '', monthlyPayment: '', endDate: '' });
-  const [newInv, setNewInv] = useState({ name: '', currentValue: '', monthlySavings: '', note: '' });
-  const [newOndraTitle, setNewOndraTitle] = useState('');
-  const [newOndraAmount, setNewOndraAmount] = useState('');
+  const [newDebtName, setNewDebtName] = useState('');
+  const [newDebtAmount, setNewDebtAmount] = useState('');
+  const [newDebtMonthly, setNewDebtMonthly] = useState('');
+  const [newDebtEndDate, setNewDebtEndDate] = useState('');
+
+  const [newInvName, setNewInvName] = useState('');
+  const [newInvValue, setNewInvValue] = useState('');
+  const [newInvMonthly, setNewInvMonthly] = useState('');
+  const [newInvNote, setNewInvNote] = useState('');
 
   useEffect(() => {
     fetchData();
@@ -65,27 +53,6 @@ export function InvestmentsPage() {
         }));
         setInvestments(formattedInv);
       }
-
-      const { data: ondraData } = await supabase.from('ondra_debts').select('*').order('id');
-      const { data: paymentsData } = await supabase.from('ondra_payments').select('*');
-
-      if (ondraData) {
-        const combined = ondraData.map((d: any) => ({
-          id: d.id,
-          title: d.title,
-          originalAmount: d.original_amount,
-          note: d.note || '',
-          payments: (paymentsData || [])
-            .filter((p: any) => p.ondra_debt_id === d.id)
-            .map((p: any) => ({
-              id: p.id,
-              ondra_debt_id: p.ondra_debt_id,
-              amount: p.amount,
-              date: p.date,
-            })),
-        }));
-        setOndraDebts(combined);
-      }
     } catch (err) {
       console.error('Chyba při načítání:', err);
     } finally {
@@ -95,35 +62,38 @@ export function InvestmentsPage() {
 
   const handleAddDebt = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newDebt.name) return;
+    if (!newDebtName) return;
 
     const { data, error } = await supabase
       .from('debts')
       .insert([{
-        name: newDebt.name,
-        amount: Number(newDebt.amount) || 0,
-        monthly_payment: Number(newDebt.monthlyPayment) || 0,
-        end_date: newDebt.endDate || null,
+        name: newDebtName,
+        amount: Number(newDebtAmount) || 0,
+        monthly_payment: Number(newDebtMonthly) || 0,
+        end_date: newDebtEndDate || null,
       }])
       .select();
 
     if (!error && data) {
       setDebts([...debts, data[0]]);
-      setNewDebt({ name: '', amount: '', monthlyPayment: '', endDate: '' });
+      setNewDebtName('');
+      setNewDebtAmount('');
+      setNewDebtMonthly('');
+      setNewDebtEndDate('');
     }
   };
 
   const handleAddInvestment = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newInv.name) return;
+    if (!newInvName) return;
 
     const { data, error } = await supabase
       .from('investments')
       .insert([{
-        name: newInv.name,
-        current_value: Number(newInv.currentValue) || 0,
-        monthly_savings: Number(newInv.monthlySavings) || 0,
-        note: newInv.note,
+        name: newInvName,
+        current_value: Number(newInvValue) || 0,
+        monthly_savings: Number(newInvMonthly) || 0,
+        note: newInvNote,
       }])
       .select();
 
@@ -136,32 +106,10 @@ export function InvestmentsPage() {
         note: data[0].note || '',
       };
       setInvestments([...investments, newItem]);
-      setNewInv({ name: '', currentValue: '', monthlySavings: '', note: '' });
-    }
-  };
-
-  const handleAddOndraDebt = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newOndraTitle) return;
-
-    const { data, error } = await supabase
-      .from('ondra_debts')
-      .insert([{
-        title: newOndraTitle,
-        original_amount: Number(newOndraAmount) || 0,
-      }])
-      .select();
-
-    if (!error && data) {
-      setOndraDebts([...ondraDebts, {
-        id: data[0].id,
-        title: data[0].title,
-        originalAmount: data[0].original_amount,
-        note: '',
-        payments: [],
-      }]);
-      setNewOndraTitle('');
-      setNewOndraAmount('');
+      setNewInvName('');
+      setNewInvValue('');
+      setNewInvMonthly('');
+      setNewInvNote('');
     }
   };
 
@@ -193,80 +141,14 @@ export function InvestmentsPage() {
     }).eq('id', item.id);
   };
 
-  const handleOndraHeaderChange = async (debtIndex: number, field: 'title' | 'originalAmount', value: string | number) => {
-    const updated = [...ondraDebts];
-    updated[debtIndex] = { ...updated[debtIndex], [field]: value };
-    setOndraDebts(updated);
-
-    const item = updated[debtIndex];
-    await supabase.from('ondra_debts').update({
-      title: item.title,
-      original_amount: item.originalAmount,
-    }).eq('id', item.id);
-  };
-
-  const handleOndraPaymentChange = async (debtIndex: number, paymentIndex: number, field: 'amount' | 'date', value: string | number) => {
-    const updated = [...ondraDebts];
-    const payments = [...updated[debtIndex].payments];
-    payments[paymentIndex] = {
-      ...payments[paymentIndex],
-      [field]: field === 'amount' ? Number(value) || 0 : value,
-    };
-    updated[debtIndex] = { ...updated[debtIndex], payments };
-    setOndraDebts(updated);
-
-    const pay = payments[paymentIndex];
-    await supabase.from('ondra_payments').update({
-      amount: pay.amount,
-      date: pay.date,
-    }).eq('id', pay.id);
-  };
-
-  const handleAddPayment = async (debtIndex: number) => {
-    const debt = ondraDebts[debtIndex];
-    const todayStr = new Date().toISOString().split('T')[0];
-
-    const { data, error } = await supabase
-      .from('ondra_payments')
-      .insert([{ ondra_debt_id: debt.id, amount: 0, date: todayStr }])
-      .select();
-
-    if (!error && data) {
-      const updated = [...ondraDebts];
-      updated[debtIndex].payments.push({
-        id: data[0].id,
-        ondra_debt_id: debt.id,
-        amount: 0,
-        date: todayStr,
-      });
-      setOndraDebts(updated);
-    }
-  };
-
-  const handleDeletePayment = async (debtIndex: number, paymentIndex: number) => {
-    const payment = ondraDebts[debtIndex].payments[paymentIndex];
-    const { error } = await supabase.from('ondra_payments').delete().eq('id', payment.id);
-
-    if (!error) {
-      const updated = [...ondraDebts];
-      updated[debtIndex].payments.splice(paymentIndex, 1);
-      setOndraDebts(updated);
-    }
-  };
-
   const totalDebtAmount = debts.reduce((acc, item) => acc + Number(item.amount || 0), 0);
   const totalDebtMonthly = debts.reduce((acc, item) => acc + Number(item.monthlyPayment || 0), 0);
 
   const totalInvValue = investments.reduce((acc, item) => acc + Number(item.currentValue || 0), 0);
   const totalInvMonthly = investments.reduce((acc, item) => acc + Number(item.monthlySavings || 0), 0);
 
-  const totalOndraRemaining = ondraDebts.reduce((acc, item) => {
-    const paidSum = item.payments.reduce((pAcc, p) => pAcc + Number(p.amount || 0), 0);
-    return acc + (Number(item.originalAmount || 0) - paidSum);
-  }, 0);
-
   if (loading) {
-    return <div className="p-6 text-center">Načítám investice a dluhy z databáze...</div>;
+    return <div className="p-6 text-center">Načítám...</div>;
   }
 
   return (
@@ -321,7 +203,7 @@ export function InvestmentsPage() {
                   <td className="p-2">
                     <input
                       type="date"
-                      value={item.endDate}
+                      value={item.endDate || ''}
                       onChange={(e) => handleDebtChange(index, 'endDate', e.target.value)}
                       className="border rounded px-2 py-1 w-full"
                     />
@@ -335,31 +217,31 @@ export function InvestmentsPage() {
           <input
             type="text"
             placeholder="Název"
-            value={newDebt.name}
-            onChange={(e) => setNewDebt({ ...newDebt, name: e.target.value })}
+            value={newDebtName}
+            onChange={(e) => setNewDebtName(e.target.value)}
             className="border rounded px-2 py-1"
           />
           <input
             type="number"
             placeholder="Částka"
-            value={newDebt.amount}
-            onChange={(e) => setNewDebt({ ...newDebt, amount: e.target.value })}
+            value={newDebtAmount}
+            onChange={(e) => setNewDebtAmount(e.target.value)}
             className="border rounded px-2 py-1"
           />
           <input
             type="number"
             placeholder="Splátka"
-            value={newDebt.monthlyPayment}
-            onChange={(e) => setNewDebt({ ...newDebt, monthlyPayment: e.target.value })}
+            value={newDebtMonthly}
+            onChange={(e) => setNewDebtMonthly(e.target.value)}
             className="border rounded px-2 py-1"
           />
           <input
             type="date"
-            value={newDebt.endDate}
-            onChange={(e) => setNewDebt({ ...newDebt, endDate: e.target.value })}
+            value={newDebtEndDate}
+            onChange={(e) => setNewDebtEndDate(e.target.value)}
             className="border rounded px-2 py-1"
           />
-          <button type="submit" className="bg-blue-600 text-white rounded px-4 py-1 hover:bg-blue-700">
+          <button type="submit" className="bg-blue-600 text-white rounded px-4 py-1 hover:bg-blue-700 font-medium">
             Přidat dluh
           </button>
         </form>
@@ -427,166 +309,33 @@ export function InvestmentsPage() {
           <input
             type="text"
             placeholder="Název"
-            value={newInv.name}
-            onChange={(e) => setNewInv({ ...newInv, name: e.target.value })}
+            value={newInvName}
+            onChange={(e) => setNewInvName(e.target.value)}
             className="border rounded px-2 py-1"
           />
           <input
             type="number"
             placeholder="Hodnota"
-            value={newInv.currentValue}
-            onChange={(e) => setNewInv({ ...newInv, currentValue: e.target.value })}
+            value={newInvValue}
+            onChange={(e) => setNewInvValue(e.target.value)}
             className="border rounded px-2 py-1"
           />
           <input
             type="number"
             placeholder="Spořená částka"
-            value={newInv.monthlySavings}
-            onChange={(e) => setNewInv({ ...newInv, monthlySavings: e.target.value })}
+            value={newInvMonthly}
+            onChange={(e) => setNewInvMonthly(e.target.value)}
             className="border rounded px-2 py-1"
           />
           <input
             type="text"
             placeholder="Poznámka"
-            value={newInv.note}
-            onChange={(e) => setNewInv({ ...newInv, note: e.target.value })}
+            value={newInvNote}
+            onChange={(e) => setNewInvNote(e.target.value)}
             className="border rounded px-2 py-1"
           />
-          <button type="submit" className="bg-green-600 text-white rounded px-4 py-1 hover:bg-green-700">
+          <button type="submit" className="bg-green-600 text-white rounded px-4 py-1 hover:bg-green-700 font-medium">
             Přidat investici
-          </button>
-        </form>
-      </section>
-
-      {/* 3. ODDÍL: ONDRA DLUHY */}
-      <section className="bg-white p-6 rounded-xl shadow-md space-y-6">
-        <div className="flex justify-between items-center border-b pb-3">
-          <h2 className="text-xl font-semibold text-amber-600">3. Ondra dluhy</h2>
-          <div className="text-sm font-medium">
-            Celkem zbývá: <span className="text-amber-600 font-bold">{totalOndraRemaining.toLocaleString()} Kč</span>
-          </div>
-        </div>
-
-        {ondraDebts.map((debt, debtIndex) => {
-          const totalPaid = debt.payments.reduce((sum, p) => sum + Number(p.amount || 0), 0);
-          const currentRemaining = debt.originalAmount - totalPaid;
-
-          return (
-            <div key={debt.id} className="space-y-4">
-              <div className="overflow-x-auto">
-                <table className="w-full text-left border-collapse">
-                  <thead>
-                    <tr className="border-b text-gray-600">
-                      <th className="p-2">Popis dluhu</th>
-                      <th className="p-2">Původní částka</th>
-                      <th className="p-2">Aktuální zbývající dluh</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <tr className="border-b bg-gray-50">
-                      <td className="p-2">
-                        <input
-                          type="text"
-                          value={debt.title}
-                          onChange={(e) => handleOndraHeaderChange(debtIndex, 'title', e.target.value)}
-                          className="border rounded px-2 py-1 w-full bg-white font-medium"
-                        />
-                      </td>
-                      <td className="p-2">
-                        <input
-                          type="number"
-                          value={debt.originalAmount}
-                          onChange={(e) => handleOndraHeaderChange(debtIndex, 'originalAmount', Number(e.target.value))}
-                          className="border rounded px-2 py-1 w-full bg-white font-medium"
-                        />
-                      </td>
-                      <td className="p-2 font-bold text-amber-700">
-                        {currentRemaining.toLocaleString()} Kč
-                      </td>
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
-
-              {/* Seznam splátek */}
-              <div className="pt-2 space-y-2">
-                <div className="flex justify-between items-center">
-                  <span className="text-sm font-semibold text-gray-700">Historie splátek:</span>
-                  <button
-                    type="button"
-                    onClick={() => handleAddPayment(debtIndex)}
-                    className="text-xs bg-amber-600 text-white px-3 py-1 rounded hover:bg-amber-700"
-                  >
-                    + Přidat splátku
-                  </button>
-                </div>
-
-                <div className="overflow-x-auto">
-                  <table className="w-full text-left border-collapse">
-                    <thead>
-                      <tr className="border-b text-gray-600 text-sm">
-                        <th className="p-2">Částka splátky</th>
-                        <th className="p-2">Datum splátky</th>
-                        <th className="p-2 w-16">Akce</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {debt.payments.map((payment, pIndex) => (
-                        <tr key={payment.id} className="border-b">
-                          <td className="p-2">
-                            <input
-                              type="number"
-                              value={payment.amount}
-                              onChange={(e) => handleOndraPaymentChange(debtIndex, pIndex, 'amount', e.target.value)}
-                              className="border rounded px-2 py-1 w-full text-sm"
-                            />
-                          </td>
-                          <td className="p-2">
-                            <input
-                              type="date"
-                              value={payment.date}
-                              onChange={(e) => handleOndraPaymentChange(debtIndex, pIndex, 'date', e.target.value)}
-                              className="border rounded px-2 py-1 w-full text-sm"
-                            />
-                          </td>
-                          <td className="p-2 text-center">
-                            <button
-                              type="button"
-                              onClick={() => handleDeletePayment(debtIndex, pIndex)}
-                              className="text-red-500 hover:text-red-700 font-bold px-2 py-1 text-sm"
-                              title="Smazat splátku"
-                            >
-                              ✕
-                            </button>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            </div>
-          );
-        })}
-
-        {/* Formulář pro přidání nového Ondrova dluhu */}
-        <form onSubmit={handleAddOndraDebt} className="grid grid-cols-1 md:grid-cols-3 gap-2 pt-4 border-t">
-          <input
-            type="text"
-            placeholder="Název nového dluhu"
-            value={newOndraTitle}
-            onChange={(e) => setNewOndraTitle(e.target.value)}
-            className="border rounded px-2 py-1"
-          />
-          <input
-            type="number"
-            placeholder="Původní částka"
-            value={newOndraAmount}
-            onChange={(e) => setNewOndraAmount(e.target.value)}
-            className="border rounded px-2 py-1"
-          />
-          <button type="submit" className="bg-amber-600 text-white rounded px-4 py-1 hover:bg-amber-700">
-            Přidat Ondra dluh
           </button>
         </form>
       </section>
