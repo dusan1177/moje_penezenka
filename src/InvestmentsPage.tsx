@@ -38,7 +38,7 @@ export function InvestmentsPage() {
   const [ondraDebts, setOndraDebts] = useState<OndraDebt[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // Stavy pro formuláře pro přidávání
+  // Stavy pro formuláře
   const [newDebt, setNewDebt] = useState({ name: '', amount: '', monthlyPayment: '', endDate: '' });
   const [newInv, setNewInv] = useState({ name: '', currentValue: '', monthlySavings: '', note: '' });
   const [newOndraTitle, setNewOndraTitle] = useState('');
@@ -93,7 +93,6 @@ export function InvestmentsPage() {
     }
   };
 
-  // --- PŘIDÁNÍ DLUHU ---
   const handleAddDebt = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newDebt.name) return;
@@ -114,7 +113,6 @@ export function InvestmentsPage() {
     }
   };
 
-  // --- PŘIDÁNÍ INVESTICE ---
   const handleAddInvestment = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newInv.name) return;
@@ -142,7 +140,6 @@ export function InvestmentsPage() {
     }
   };
 
-  // --- PŘIDÁNÍ ONDRA DLUHU ---
   const handleAddOndraDebt = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newOndraTitle) return;
