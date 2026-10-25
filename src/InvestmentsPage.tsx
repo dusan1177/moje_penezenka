@@ -17,12 +17,33 @@ interface Investment {
   note: string;
 }
 
+interface OndraDebt {
+  id: number;
+  title: string;
+  originalAmount: number;
+  note: string;
+}
+
+interface OndraPayment {
+  id: number;
+  ondraDebtId: number;
+  amount: number;
+  date: string;
+}
+
 export function InvestmentsPage() {
   const [debts, setDebts] = useState<Debt[]>([]);
   const [investments, setInvestments] = useState<Investment[]>([]);
+  
+  // Stavy pro Ondrovy dluhy
+  const [ondraDebt, setOndraDebt] = useState<OndraDebt | null>(null);
+  const [ondraPayments, setOndraPayments] = useState<OndraPayment[]>([]);
+  const [newPaymentAmount, setNewPaymentAmount] = useState('');
+  const [newPaymentDate, setNewPaymentDate] = useState('');
+
   const [loading, setLoading] = useState(true);
 
-  // Stavy pro formuláře
+  // Stavy pro formuláře Dluhů a Investic
   const [newDebtName, setNewDebtName] = useState('');
   const [newDebtAmount, setNewDebtAmount] = useState('');
   const [newDebtMonthly, setNewDebtMonthly] = useState('');
@@ -40,6 +61,7 @@ export function InvestmentsPage() {
   const fetchData = async () => {
     setLoading(true);
     try {
+      // 1. Dluhy
       const { data: debtsData } = await supabase.from('debts').select('*').order('id');
       if (debtsData) {
         const formattedDebts = debtsData.map((item: any) => ({
@@ -52,6 +74,7 @@ export function InvestmentsPage() {
         setDebts(formattedDebts);
       }
 
+      // 2. Investice
       const { data: invData } = await supabase.from('investments').select('*').order('id');
       if (invData) {
         const formattedInv = invData.map((item: any) => ({
@@ -62,6 +85,33 @@ export function InvestmentsPage() {
           note: item.note || '',
         }));
         setInvestments(formattedInv);
+      }
+
+      // 3. Ondrovy dluhy a splátky
+      const { data: oDebtsData } = await supabase.from('ondra_debts').select('*').limit(1);
+      if (oDebtsData && oDebtsData.length > 0) {
+        setOndraDebt({
+          id: oDebtsData[0].id,
+          title: oDebtsData[0].title,
+          originalAmount: oDebtsData[0].original_amount,
+          note: oDebtsData[0].note || '',
+        });
+
+        const { data: oPayData } = await supabase
+          .from('ondra_payments')
+          .select('*')
+          .eq('ondra_debt_id', oDebtsData[0].id)
+          .order('id');
+
+        if (oPayData) {
+          const formattedPayments = oPayData.map((p: any) => ({
+            id: p.id,
+            ondraDebtId: p.ondra_debt_id,
+            amount: p.amount,
+            date: p.date || '',
+          }));
+          setOndraPayments(formattedPayments);
+        }
       }
     } catch (err) {
       console.error('Chyba při načítání:', err);
@@ -130,6 +180,32 @@ export function InvestmentsPage() {
     }
   };
 
+  const handleAddOndraPayment = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!ondraDebt || !newPaymentAmount) return;
+
+    const { data, error } = await supabase
+      .from('ondra_payments')
+      .insert([{
+        ondra_debt_id: ondraDebt.id,
+        amount: Number(newPaymentAmount) || 0,
+        date: newPaymentDate || null,
+      }])
+      .select();
+
+    if (!error && data && data[0]) {
+      const newPay: OndraPayment = {
+        id: data[0].id,
+        ondraDebtId: data[0].ondra_debt_id,
+        amount: data[0].amount,
+        date: data[0].date || '',
+      };
+      setOndraPayments([...ondraPayments, newPay]);
+      setNewPaymentAmount('');
+      setNewPaymentDate('');
+    }
+  };
+
   const handleDebtChange = async (index: number, field: keyof Debt, value: string | number) => {
     const updated = [...debts];
     updated[index] = { ...updated[index], [field]: value };
@@ -158,11 +234,16 @@ export function InvestmentsPage() {
     }).eq('id', item.id);
   };
 
+  // Výpočty
   const totalDebtAmount = debts.reduce((acc, item) => acc + Number(item.amount || 0), 0);
   const totalDebtMonthly = debts.reduce((acc, item) => acc + Number(item.monthlyPayment || 0), 0);
 
   const totalInvValue = investments.reduce((acc, item) => acc + Number(item.currentValue || 0), 0);
   const totalInvMonthly = investments.reduce((acc, item) => acc + Number(item.monthlySavings || 0), 0);
+
+  const ondraTotalPayments = ondraPayments.reduce((acc, p) => acc + Number(p.amount || 0), 0);
+  const ondraOriginal = ondraDebt ? Number(ondraDebt.originalAmount || 0) : 15500;
+  const ondraRemaining = ondraOriginal - ondraTotalPayments;
 
   if (loading) {
     return <div className="p-6 text-center">Načítám...</div>;
@@ -353,6 +434,54 @@ export function InvestmentsPage() {
           />
           <button type="submit" className="bg-green-600 text-white rounded px-4 py-1 hover:bg-green-700 font-medium">
             Přidat investici
+          </button>
+        </form>
+      </section>
+
+      {/* 3. ODDÍL: ONDRA DLUHY */}
+      <section className="bg-white p-6 rounded-xl shadow-md space-y-4">
+        <div className="flex justify-between items-center border-b pb-3">
+          <h2 className="text-xl font-semibold text-orange-600">3. Ondra dluh</h2>
+          <div className="text-sm font-medium">
+            Původní částka: {ondraOriginal.toLocaleString()} Kč | Zbývá dlužit: <span className="text-red-600 font-bold">{ondraRemaining.toLocaleString()} Kč</span>
+          </div>
+        </div>
+        
+        <div className="overflow-x-auto">
+          <table className="w-full text-left border-collapse">
+            <thead>
+              <tr className="border-b text-gray-600">
+                <th className="p-2">Splátka (částka)</th>
+                <th className="p-2">Datum splátky</th>
+              </tr>
+            </thead>
+            <tbody>
+              {ondraPayments.map((payment) => (
+                <tr key={payment.id} className="border-b">
+                  <td className="p-2 font-medium">{payment.amount.toLocaleString()} Kč</td>
+                  <td className="p-2 text-gray-600">{payment.date}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+
+        <form onSubmit={handleAddOndraPayment} className="grid grid-cols-1 md:grid-cols-3 gap-2 pt-2">
+          <input
+            type="number"
+            placeholder="Částka splátky"
+            value={newPaymentAmount}
+            onChange={(e) => setNewPaymentAmount(e.target.value)}
+            className="border rounded px-2 py-1"
+          />
+          <input
+            type="date"
+            value={newPaymentDate}
+            onChange={(e) => setNewPaymentDate(e.target.value)}
+            className="border rounded px-2 py-1"
+          />
+          <button type="submit" className="bg-orange-600 text-white rounded px-4 py-1 hover:bg-orange-700 font-medium">
+            Přidat splátku
           </button>
         </form>
       </section>
