@@ -57,7 +57,6 @@ export function InvestmentsPage() {
     },
   ]);
 
-  // Úpravy v tabulkách
   const handleDebtChange = (index: number, field: keyof Debt, value: string | number) => {
     const updated = [...debts];
     updated[index] = { ...updated[index], [field]: value };
@@ -70,7 +69,7 @@ export function InvestmentsPage() {
     setInvestments(updated);
   };
 
-  // Správa splátek u Ondry
+  // Správa splátek u Ondry v tabulkovém zobrazení
   const handleOndraPaymentChange = (debtIndex: number, paymentIndex: number, field: 'amount' | 'date', value: string | number) => {
     const updated = [...ondraDebts];
     const payments = [...updated[debtIndex].payments];
@@ -247,83 +246,107 @@ export function InvestmentsPage() {
           const currentRemaining = debt.originalAmount - totalPaid;
 
           return (
-            <div key={debt.id} className="border border-gray-200 rounded-lg p-4 space-y-4 bg-gray-50">
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-center">
-                <div>
-                  <label className="text-xs text-gray-500 block">Popis dluhu</label>
-                  <input
-                    type="text"
-                    value={debt.title}
-                    onChange={(e) => {
-                      const updated = [...ondraDebts];
-                      updated[debtIndex].title = e.target.value;
-                      setOndraDebts(updated);
-                    }}
-                    className="border rounded px-2 py-1 w-full bg-white font-medium"
-                  />
-                </div>
-                <div>
-                  <label className="text-xs text-gray-500 block">Původní částka (Kč)</label>
-                  <input
-                    type="number"
-                    value={debt.originalAmount}
-                    onChange={(e) => {
-                      const updated = [...ondraDebts];
-                      updated[debtIndex].originalAmount = Number(e.target.value) || 0;
-                      setOndraDebts(updated);
-                    }}
-                    className="border rounded px-2 py-1 w-full bg-white font-medium"
-                  />
-                </div>
-                <div>
-                  <label className="text-xs text-gray-500 block">Aktuální zbývající dluh</label>
-                  <span className="text-lg font-bold text-amber-700">{currentRemaining.toLocaleString()} Kč</span>
-                </div>
+            <div key={debt.id} className="space-y-4">
+              {/* Hlavní údaje dluhu v tabulkovém designu */}
+              <div className="overflow-x-auto">
+                <table className="w-full text-left border-collapse">
+                  <thead>
+                    <tr className="border-b text-gray-600">
+                      <th className="p-2">Popis dluhu</th>
+                      <th className="p-2">Původní částka</th>
+                      <th className="p-2">Aktuální zbývající dluh</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr className="border-b bg-gray-50">
+                      <td className="p-2">
+                        <input
+                          type="text"
+                          value={debt.title}
+                          onChange={(e) => {
+                            const updated = [...ondraDebts];
+                            updated[debtIndex].title = e.target.value;
+                            setOndraDebts(updated);
+                          }}
+                          className="border rounded px-2 py-1 w-full bg-white font-medium"
+                        />
+                      </td>
+                      <td className="p-2">
+                        <input
+                          type="number"
+                          value={debt.originalAmount}
+                          onChange={(e) => {
+                            const updated = [...ondraDebts];
+                            updated[debtIndex].originalAmount = Number(e.target.value) || 0;
+                            setOndraDebts(updated);
+                          }}
+                          className="border rounded px-2 py-1 w-full bg-white font-medium"
+                        />
+                      </td>
+                      <td className="p-2 font-bold text-amber-700">
+                        {currentRemaining.toLocaleString()} Kč
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
               </div>
 
-              {/* Seznam splátek */}
-              <div className="mt-3 space-y-2">
+              {/* Seznam splátek v čisté tabulce */}
+              <div className="pt-2 space-y-2">
                 <div className="flex justify-between items-center">
-                  <span className="text-sm font-semibold text-gray-700">Splátky:</span>
+                  <span className="text-sm font-semibold text-gray-700">Historie splátek:</span>
                   <button
                     type="button"
                     onClick={() => handleAddPayment(debtIndex)}
-                    className="text-xs bg-amber-600 text-white px-2 py-1 rounded hover:bg-amber-700"
+                    className="text-xs bg-amber-600 text-white px-3 py-1 rounded hover:bg-amber-700"
                   >
                     + Přidat splátku
                   </button>
                 </div>
 
-                {debt.payments.map((payment, pIndex) => (
-                  <div key={payment.id} className="flex items-center gap-2 bg-white p-2 rounded border">
-                    <div className="flex-1">
-                      <label className="text-[10px] text-gray-400 block">Částka splátky</label>
-                      <input
-                        type="number"
-                        value={payment.amount}
-                        onChange={(e) => handleOndraPaymentChange(debtIndex, pIndex, 'amount', e.target.value)}
-                        className="border rounded px-2 py-1 w-full text-sm"
-                      />
-                    </div>
-                    <div className="flex-1">
-                      <label className="text-[10px] text-gray-400 block">Datum splátky</label>
-                      <input
-                        type="date"
-                        value={payment.date}
-                        onChange={(e) => handleOndraPaymentChange(debtIndex, pIndex, 'date', e.target.value)}
-                        className="border rounded px-2 py-1 w-full text-sm"
-                      />
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => handleDeletePayment(debtIndex, pIndex)}
-                      className="text-red-500 hover:text-red-700 px-2 py-1 text-sm mt-4"
-                      title="Smazat splátku"
-                    >
-                      ✕
-                    </button>
-                  </div>
-                ))}
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left border-collapse">
+                    <thead>
+                      <tr className="border-b text-gray-600 text-sm">
+                        <th className="p-2">Částka splátky</th>
+                        <th className="p-2">Datum splátky</th>
+                        <th className="p-2 w-16">Akce</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {debt.payments.map((payment, pIndex) => (
+                        <tr key={payment.id} className="border-b">
+                          <td className="p-2">
+                            <input
+                              type="number"
+                              value={payment.amount}
+                              onChange={(e) => handleOndraPaymentChange(debtIndex, pIndex, 'amount', e.target.value)}
+                              className="border rounded px-2 py-1 w-full text-sm"
+                            />
+                          </td>
+                          <td className="p-2">
+                            <input
+                              type="date"
+                              value={payment.date}
+                              onChange={(e) => handleOndraPaymentChange(debtIndex, pIndex, 'date', e.target.value)}
+                              className="border rounded px-2 py-1 w-full text-sm"
+                            />
+                          </td>
+                          <td className="p-2 text-center">
+                            <button
+                              type="button"
+                              onClick={() => handleDeletePayment(debtIndex, pIndex)}
+                              className="text-red-500 hover:text-red-700 font-bold px-2 py-1 text-sm"
+                              title="Smazat splátku"
+                            >
+                              ✕
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               </div>
             </div>
           );
