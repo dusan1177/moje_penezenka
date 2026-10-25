@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { supabase } from './supabaseClient';
 
 interface Debt {
   id: number;
@@ -18,6 +19,7 @@ interface Investment {
 
 interface PaymentItem {
   id: number;
+  ondra_debt_id: number;
   amount: number;
   date: string;
 }
@@ -31,46 +33,118 @@ interface OndraDebt {
 }
 
 export function InvestmentsPage() {
-  const [debts, setDebts] = useState<Debt[]>([
-    { id: 1, name: 'Moneta', amount: 300000, monthlyPayment: 5564, endDate: '2031-08-15' },
-    { id: 2, name: 'Raifka', amount: 39253, monthlyPayment: 6627, endDate: '2027-02-23' },
-    { id: 3, name: 'ČSOB', amount: 2065726, monthlyPayment: 13639, endDate: '2047-08-20' },
-  ]);
+  const [debts, setDebts] = useState<Debt[]>([]);
+  const [investments, setInvestments] = useState<Investment[]>([]);
+  const [ondraDebts, setOndraDebts] = useState<OndraDebt[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  const [investments, setInvestments] = useState<Investment[]>([
-    { id: 1, name: 'Rentea', currentValue: 504590, monthlySavings: 1700, note: 'Vojta' },
-    { id: 2, name: 'Investice Amundi', currentValue: 356684.4, monthlySavings: 1500, note: '118894.8' },
-    { id: 3, name: 'DIP Amundi', currentValue: 101547, monthlySavings: 4500, note: '' },
-    { id: 4, name: 'Trading', currentValue: 90000, monthlySavings: 3600, note: '' },
-  ]);
+  // Načtení dat ze Supabase při startu
+  useEffect(() => {
+    fetchData();
+  }, []);
 
-  const [ondraDebts, setOndraDebts] = useState<OndraDebt[]>([
-    {
-      id: 1,
-      title: 'Ondra dluh',
-      originalAmount: 15500,
-      note: 'splátky',
-      payments: [
-        { id: 1, amount: 3000, date: '2026-09-01' },
-        { id: 2, amount: 2000, date: '2026-09-18' },
-      ],
-    },
-  ]);
+  const fetchData = async () => {
+    setLoading(true);
+    try {
+      // 1. Načtení dluhů
+      const { data: debtsData } = await supabase.from('debts').select('*').order('id');
+      if (debtsData) setDebts(debtsData);
 
-  const handleDebtChange = (index: number, field: keyof Debt, value: string | number) => {
+      // 2. Načtení investic
+      const { data: invData } = await supabase.from('investments').select('*').order('id');
+      if (invData) {
+        // Převedení názvů sloupců z DB na camelCase pro komponentu
+        const formattedInv = invData.map((item: any) => ({
+          id: item.id,
+          name: item.name,
+          currentValue: item.current_value,
+          monthlySavings: item.monthly_savings,
+          note: item.note || '',
+        }));
+        setInvestments(formattedInv);
+      }
+
+      // 3. Načtení Ondrových dluhů a jejich splátek
+      const { data: ondraData } = await supabase.from('ondra_debts').select('*').order('id');
+      const { data: paymentsData } = await supabase.from('ondra_payments').select('*');
+
+      if (ondraData) {
+        const combined = ondraData.map((d: any) => ({
+          id: d.id,
+          title: d.title,
+          originalAmount: d.original_amount,
+          note: d.note || '',
+          payments: (paymentsData || [])
+            .filter((p: any) => p.ondra_debt_id === d.id)
+            .map((p: any) => ({
+              id: p.id,
+              ondra_debt_id: p.ondra_debt_id,
+              amount: p.amount,
+              date: p.date,
+            })),
+        }));
+        setOndraDebts(combined);
+      }
+    } catch (err) {
+      console.error('Chyba při načítání investic a dluhů:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // --- AKTUALIZACE DLUHŮ ---
+  const handleDebtChange = async (index: number, field: keyof Debt, value: string | number) => {
     const updated = [...debts];
     updated[index] = { ...updated[index], [field]: value };
     setDebts(updated);
+
+    const item = updated[index];
+    await supabase
+      .from('debts')
+      .update({
+        name: item.name,
+        amount: item.amount,
+        monthly_payment: item.monthlyPayment,
+        end_date: item.endDate,
+      })
+      .eq('id', item.id);
   };
 
-  const handleInvestmentChange = (index: number, field: keyof Investment, value: string | number) => {
+  // --- AKTUALIZACE INVESTIC ---
+  const handleInvestmentChange = async (index: number, field: keyof Investment, value: string | number) => {
     const updated = [...investments];
     updated[index] = { ...updated[index], [field]: value };
     setInvestments(updated);
+
+    const item = updated[index];
+    await supabase
+      .from('investments')
+      .update({
+        name: item.name,
+        current_value: item.currentValue,
+        monthly_savings: item.monthlySavings,
+        note: item.note,
+      })
+      .eq('id', item.id);
   };
 
-  // Správa splátek u Ondry v tabulkovém zobrazení
-  const handleOndraPaymentChange = (debtIndex: number, paymentIndex: number, field: 'amount' | 'date', value: string | number) => {
+  // --- AKTUALIZACE ONDRA DLUHŮ & SPLÁTEK ---
+  const handleOndraHeaderChange = async (debtIndex: number, field: 'title' | 'originalAmount', value: string | number) => {
+    const updated = [...ondraDebts];
+    updated[debtIndex] = { ...updated[debtIndex], [field]: value };
+    setOndraDebts(updated);
+
+    const item = updated[debtIndex];
+    await supabase
+      .from('ondra_debts')
+      .update({
+        title: item.title,
+        original_amount: item.originalAmount,
+      })
+      .eq('id', item.id);
+  };
+
+  const handleOndraPaymentChange = async (debtIndex: number, paymentIndex: number, field: 'amount' | 'date', value: string | number) => {
     const updated = [...ondraDebts];
     const payments = [...updated[debtIndex].payments];
     payments[paymentIndex] = {
@@ -79,22 +153,51 @@ export function InvestmentsPage() {
     };
     updated[debtIndex] = { ...updated[debtIndex], payments };
     setOndraDebts(updated);
+
+    const pay = payments[paymentIndex];
+    await supabase
+      .from('ondra_payments')
+      .update({
+        amount: pay.amount,
+        date: pay.date,
+      })
+      .eq('id', pay.id);
   };
 
-  const handleAddPayment = (debtIndex: number) => {
-    const updated = [...ondraDebts];
-    updated[debtIndex].payments.push({
-      id: Date.now(),
-      amount: 0,
-      date: new Date().toISOString().split('T')[0],
-    });
-    setOndraDebts(updated);
+  const handleAddPayment = async (debtIndex: number) => {
+    const debt = ondraDebts[debtIndex];
+    const todayStr = new Date().toISOString().split('T')[0];
+
+    const { data, error } = await supabase
+      .from('ondra_payments')
+      .insert([{ ondra_debt_id: debt.id, amount: 0, date: todayStr }])
+      .select();
+
+    if (!error && data) {
+      const updated = [...ondraDebts];
+      updated[debtIndex].payments.push({
+        id: data[0].id,
+        ondra_debt_id: debt.id,
+        amount: 0,
+        date: todayStr,
+      });
+      setOndraDebts(updated);
+    }
   };
 
-  const handleDeletePayment = (debtIndex: number, paymentIndex: number) => {
-    const updated = [...ondraDebts];
-    updated[debtIndex].payments.splice(paymentIndex, 1);
-    setOndraDebts(updated);
+  const handleDeletePayment = async (debtIndex: number, paymentIndex: number) => {
+    const payment = ondraDebts[debtIndex].payments[paymentIndex];
+    
+    const { error } = await supabase
+      .from('ondra_payments')
+      .delete()
+      .eq('id', payment.id);
+
+    if (!error) {
+      const updated = [...ondraDebts];
+      updated[debtIndex].payments.splice(paymentIndex, 1);
+      setOndraDebts(updated);
+    }
   };
 
   const totalDebtAmount = debts.reduce((acc, item) => acc + Number(item.amount || 0), 0);
@@ -107,6 +210,10 @@ export function InvestmentsPage() {
     const paidSum = item.payments.reduce((pAcc, p) => pAcc + Number(p.amount || 0), 0);
     return acc + (Number(item.originalAmount || 0) - paidSum);
   }, 0);
+
+  if (loading) {
+    return <div className="p-6 text-center">Načítám investice a dluhy z databáze...</div>;
+  }
 
   return (
     <div className="p-6 max-w-6xl mx-auto space-y-8">
@@ -247,7 +354,6 @@ export function InvestmentsPage() {
 
           return (
             <div key={debt.id} className="space-y-4">
-              {/* Hlavní údaje dluhu v tabulkovém designu */}
               <div className="overflow-x-auto">
                 <table className="w-full text-left border-collapse">
                   <thead>
@@ -263,11 +369,7 @@ export function InvestmentsPage() {
                         <input
                           type="text"
                           value={debt.title}
-                          onChange={(e) => {
-                            const updated = [...ondraDebts];
-                            updated[debtIndex].title = e.target.value;
-                            setOndraDebts(updated);
-                          }}
+                          onChange={(e) => handleOndraHeaderChange(debtIndex, 'title', e.target.value)}
                           className="border rounded px-2 py-1 w-full bg-white font-medium"
                         />
                       </td>
@@ -275,11 +377,7 @@ export function InvestmentsPage() {
                         <input
                           type="number"
                           value={debt.originalAmount}
-                          onChange={(e) => {
-                            const updated = [...ondraDebts];
-                            updated[debtIndex].originalAmount = Number(e.target.value) || 0;
-                            setOndraDebts(updated);
-                          }}
+                          onChange={(e) => handleOndraHeaderChange(debtIndex, 'originalAmount', Number(e.target.value))}
                           className="border rounded px-2 py-1 w-full bg-white font-medium"
                         />
                       </td>
@@ -291,7 +389,7 @@ export function InvestmentsPage() {
                 </table>
               </div>
 
-              {/* Seznam splátek v čisté tabulce */}
+              {/* Seznam splátek */}
               <div className="pt-2 space-y-2">
                 <div className="flex justify-between items-center">
                   <span className="text-sm font-semibold text-gray-700">Historie splátek:</span>
