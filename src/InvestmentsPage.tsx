@@ -38,7 +38,12 @@ export function InvestmentsPage() {
   const [ondraDebts, setOndraDebts] = useState<OndraDebt[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // Načtení dat ze Supabase při startu
+  // Stavy pro formuláře pro přidávání
+  const [newDebt, setNewDebt] = useState({ name: '', amount: '', monthlyPayment: '', endDate: '' });
+  const [newInv, setNewInv] = useState({ name: '', currentValue: '', monthlySavings: '', note: '' });
+  const [newOndraTitle, setNewOndraTitle] = useState('');
+  const [newOndraAmount, setNewOndraAmount] = useState('');
+
   useEffect(() => {
     fetchData();
   }, []);
@@ -46,14 +51,11 @@ export function InvestmentsPage() {
   const fetchData = async () => {
     setLoading(true);
     try {
-      // 1. Načtení dluhů
       const { data: debtsData } = await supabase.from('debts').select('*').order('id');
       if (debtsData) setDebts(debtsData);
 
-      // 2. Načtení investic
       const { data: invData } = await supabase.from('investments').select('*').order('id');
       if (invData) {
-        // Převedení názvů sloupců z DB na camelCase pro komponentu
         const formattedInv = invData.map((item: any) => ({
           id: item.id,
           name: item.name,
@@ -64,7 +66,6 @@ export function InvestmentsPage() {
         setInvestments(formattedInv);
       }
 
-      // 3. Načtení Ondrových dluhů a jejich splátek
       const { data: ondraData } = await supabase.from('ondra_debts').select('*').order('id');
       const { data: paymentsData } = await supabase.from('ondra_payments').select('*');
 
@@ -86,62 +87,125 @@ export function InvestmentsPage() {
         setOndraDebts(combined);
       }
     } catch (err) {
-      console.error('Chyba při načítání investic a dluhů:', err);
+      console.error('Chyba při načítání:', err);
     } finally {
       setLoading(false);
     }
   };
 
-  // --- AKTUALIZACE DLUHŮ ---
+  // --- PŘIDÁNÍ DLUHU ---
+  const handleAddDebt = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newDebt.name) return;
+
+    const { data, error } = await supabase
+      .from('debts')
+      .insert([{
+        name: newDebt.name,
+        amount: Number(newDebt.amount) || 0,
+        monthly_payment: Number(newDebt.monthlyPayment) || 0,
+        end_date: newDebt.endDate || null,
+      }])
+      .select();
+
+    if (!error && data) {
+      setDebts([...debts, data[0]]);
+      setNewDebt({ name: '', amount: '', monthlyPayment: '', endDate: '' });
+    }
+  };
+
+  // --- PŘIDÁNÍ INVESTICE ---
+  const handleAddInvestment = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newInv.name) return;
+
+    const { data, error } = await supabase
+      .from('investments')
+      .insert([{
+        name: newInv.name,
+        current_value: Number(newInv.currentValue) || 0,
+        monthly_savings: Number(newInv.monthlySavings) || 0,
+        note: newInv.note,
+      }])
+      .select();
+
+    if (!error && data) {
+      const newItem = {
+        id: data[0].id,
+        name: data[0].name,
+        currentValue: data[0].current_value,
+        monthlySavings: data[0].monthly_savings,
+        note: data[0].note || '',
+      };
+      setInvestments([...investments, newItem]);
+      setNewInv({ name: '', currentValue: '', monthlySavings: '', note: '' });
+    }
+  };
+
+  // --- PŘIDÁNÍ ONDRA DLUHU ---
+  const handleAddOndraDebt = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newOndraTitle) return;
+
+    const { data, error } = await supabase
+      .from('ondra_debts')
+      .insert([{
+        title: newOndraTitle,
+        original_amount: Number(newOndraAmount) || 0,
+      }])
+      .select();
+
+    if (!error && data) {
+      setOndraDebts([...ondraDebts, {
+        id: data[0].id,
+        title: data[0].title,
+        originalAmount: data[0].original_amount,
+        note: '',
+        payments: [],
+      }]);
+      setNewOndraTitle('');
+      setNewOndraAmount('');
+    }
+  };
+
   const handleDebtChange = async (index: number, field: keyof Debt, value: string | number) => {
     const updated = [...debts];
     updated[index] = { ...updated[index], [field]: value };
     setDebts(updated);
 
     const item = updated[index];
-    await supabase
-      .from('debts')
-      .update({
-        name: item.name,
-        amount: item.amount,
-        monthly_payment: item.monthlyPayment,
-        end_date: item.endDate,
-      })
-      .eq('id', item.id);
+    await supabase.from('debts').update({
+      name: item.name,
+      amount: item.amount,
+      monthly_payment: item.monthlyPayment,
+      end_date: item.endDate,
+    }).eq('id', item.id);
   };
 
-  // --- AKTUALIZACE INVESTIC ---
   const handleInvestmentChange = async (index: number, field: keyof Investment, value: string | number) => {
     const updated = [...investments];
     updated[index] = { ...updated[index], [field]: value };
     setInvestments(updated);
 
     const item = updated[index];
-    await supabase
-      .from('investments')
-      .update({
-        name: item.name,
-        current_value: item.currentValue,
-        monthly_savings: item.monthlySavings,
-        note: item.note,
-      })
-      .eq('id', item.id);
+    await supabase.from('investments').update({
+      name: item.name,
+      current_value: item.currentValue,
+      monthly_savings: item.monthlySavings,
+      note: item.note,
+    }).eq('id', item.id);
   };
 
-  // --- AKTUALIZACE ONDRA DLUHŮ & SPLÁTEK ---
   const handleOndraHeaderChange = async (debtIndex: number, field: 'title' | 'originalAmount', value: string | number) => {
     const updated = [...ondraDebts];
     updated[debtIndex] = { ...updated[debtIndex], [field]: value };
     setOndraDebts(updated);
 
     const item = updated[debtIndex];
-    await supabase
-      .from('ondra_debts')
-      .update({
-        title: item.title,
-        original_amount: item.originalAmount,
-      })
-      .eq('id', item.id);
+    await supabase.from('ondra_debts').update({
+      title: item.title,
+      original_amount: item.originalAmount,
+    }).eq('id', item.id);
   };
 
   const handleOndraPaymentChange = async (debtIndex: number, paymentIndex: number, field: 'amount' | 'date', value: string | number) => {
@@ -155,13 +219,10 @@ export function InvestmentsPage() {
     setOndraDebts(updated);
 
     const pay = payments[paymentIndex];
-    await supabase
-      .from('ondra_payments')
-      .update({
-        amount: pay.amount,
-        date: pay.date,
-      })
-      .eq('id', pay.id);
+    await supabase.from('ondra_payments').update({
+      amount: pay.amount,
+      date: pay.date,
+    }).eq('id', pay.id);
   };
 
   const handleAddPayment = async (debtIndex: number) => {
@@ -187,11 +248,7 @@ export function InvestmentsPage() {
 
   const handleDeletePayment = async (debtIndex: number, paymentIndex: number) => {
     const payment = ondraDebts[debtIndex].payments[paymentIndex];
-    
-    const { error } = await supabase
-      .from('ondra_payments')
-      .delete()
-      .eq('id', payment.id);
+    const { error } = await supabase.from('ondra_payments').delete().eq('id', payment.id);
 
     if (!error) {
       const updated = [...ondraDebts];
@@ -277,6 +334,38 @@ export function InvestmentsPage() {
             </tbody>
           </table>
         </div>
+        <form onSubmit={handleAddDebt} className="grid grid-cols-1 md:grid-cols-5 gap-2 pt-2">
+          <input
+            type="text"
+            placeholder="Název"
+            value={newDebt.name}
+            onChange={(e) => setNewDebt({ ...newDebt, name: e.target.value })}
+            className="border rounded px-2 py-1"
+          />
+          <input
+            type="number"
+            placeholder="Částka"
+            value={newDebt.amount}
+            onChange={(e) => setNewDebt({ ...newDebt, amount: e.target.value })}
+            className="border rounded px-2 py-1"
+          />
+          <input
+            type="number"
+            placeholder="Splátka"
+            value={newDebt.monthlyPayment}
+            onChange={(e) => setNewDebt({ ...newDebt, monthlyPayment: e.target.value })}
+            className="border rounded px-2 py-1"
+          />
+          <input
+            type="date"
+            value={newDebt.endDate}
+            onChange={(e) => setNewDebt({ ...newDebt, endDate: e.target.value })}
+            className="border rounded px-2 py-1"
+          />
+          <button type="submit" className="bg-blue-600 text-white rounded px-4 py-1 hover:bg-blue-700">
+            Přidat dluh
+          </button>
+        </form>
       </section>
 
       {/* 2. ODDÍL: INVESTICE */}
@@ -337,6 +426,39 @@ export function InvestmentsPage() {
             </tbody>
           </table>
         </div>
+        <form onSubmit={handleAddInvestment} className="grid grid-cols-1 md:grid-cols-5 gap-2 pt-2">
+          <input
+            type="text"
+            placeholder="Název"
+            value={newInv.name}
+            onChange={(e) => setNewInv({ ...newInv, name: e.target.value })}
+            className="border rounded px-2 py-1"
+          />
+          <input
+            type="number"
+            placeholder="Hodnota"
+            value={newInv.currentValue}
+            onChange={(e) => setNewInv({ ...newInv, currentValue: e.target.value })}
+            className="border rounded px-2 py-1"
+          />
+          <input
+            type="number"
+            placeholder="Spořená částka"
+            value={newInv.monthlySavings}
+            onChange={(e) => setNewInv({ ...newInv, monthlySavings: e.target.value })}
+            className="border rounded px-2 py-1"
+          />
+          <input
+            type="text"
+            placeholder="Poznámka"
+            value={newInv.note}
+            onChange={(e) => setNewInv({ ...newInv, note: e.target.value })}
+            className="border rounded px-2 py-1"
+          />
+          <button type="submit" className="bg-green-600 text-white rounded px-4 py-1 hover:bg-green-700">
+            Přidat investici
+          </button>
+        </form>
       </section>
 
       {/* 3. ODDÍL: ONDRA DLUHY */}
@@ -449,6 +571,27 @@ export function InvestmentsPage() {
             </div>
           );
         })}
+
+        {/* Formulář pro přidání nového Ondrova dluhu */}
+        <form onSubmit={handleAddOndraDebt} className="grid grid-cols-1 md:grid-cols-3 gap-2 pt-4 border-t">
+          <input
+            type="text"
+            placeholder="Název nového dluhu"
+            value={newOndraTitle}
+            onChange={(e) => setNewOndraTitle(e.target.value)}
+            className="border rounded px-2 py-1"
+          />
+          <input
+            type="number"
+            placeholder="Původní částka"
+            value={newOndraAmount}
+            onChange={(e) => setNewOndraAmount(e.target.value)}
+            className="border rounded px-2 py-1"
+          />
+          <button type="submit" className="bg-amber-600 text-white rounded px-4 py-1 hover:bg-amber-700">
+            Přidat Ondra dluh
+          </button>
+        </form>
       </section>
     </div>
   );
