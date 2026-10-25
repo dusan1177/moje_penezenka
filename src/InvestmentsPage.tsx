@@ -22,6 +22,7 @@ export function InvestmentsPage() {
   const [investments, setInvestments] = useState<Investment[]>([]);
   const [loading, setLoading] = useState(true);
 
+  // Stavy pro formuláře
   const [newDebtName, setNewDebtName] = useState('');
   const [newDebtAmount, setNewDebtAmount] = useState('');
   const [newDebtMonthly, setNewDebtMonthly] = useState('');
@@ -40,7 +41,16 @@ export function InvestmentsPage() {
     setLoading(true);
     try {
       const { data: debtsData } = await supabase.from('debts').select('*').order('id');
-      if (debtsData) setDebts(debtsData);
+      if (debtsData) {
+        const formattedDebts = debtsData.map((item: any) => ({
+          id: item.id,
+          name: item.name,
+          amount: item.amount,
+          monthlyPayment: item.monthly_payment || 0,
+          endDate: item.end_date || '',
+        }));
+        setDebts(formattedDebts);
+      }
 
       const { data: invData } = await supabase.from('investments').select('*').order('id');
       if (invData) {
@@ -74,8 +84,15 @@ export function InvestmentsPage() {
       }])
       .select();
 
-    if (!error && data) {
-      setDebts([...debts, data[0]]);
+    if (!error && data && data[0]) {
+      const addedDebt: Debt = {
+        id: data[0].id,
+        name: data[0].name,
+        amount: data[0].amount,
+        monthlyPayment: data[0].monthly_payment || 0,
+        endDate: data[0].end_date || '',
+      };
+      setDebts([...debts, addedDebt]);
       setNewDebtName('');
       setNewDebtAmount('');
       setNewDebtMonthly('');
@@ -97,8 +114,8 @@ export function InvestmentsPage() {
       }])
       .select();
 
-    if (!error && data) {
-      const newItem = {
+    if (!error && data && data[0]) {
+      const newItem: Investment = {
         id: data[0].id,
         name: data[0].name,
         currentValue: data[0].current_value,
