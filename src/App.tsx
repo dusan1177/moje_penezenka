@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { supabase } from './supabaseClient';
 import type { Session } from '@supabase/supabase-js';
 import KidsPage from './KidsPage';
+import { InvestmentsPage } from './InvestmentsPage';
 
 interface BankAccount {
   id: number;
@@ -28,8 +29,8 @@ export default function App() {
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // Stav pro přepínání záložek: 'main' = Finanční přehled, 'kluci' = Podstránka Kluci
-  const [activeTab, setActiveTab] = useState<'main' | 'kluci'>('main');
+  // Stav pro přepínání záložek: 'main' = Finanční přehled, 'kluci' = Kluci, 'investice' = Investice a dluhy
+  const [activeTab, setActiveTab] = useState<'main' | 'kluci' | 'investice'>('main');
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -242,7 +243,7 @@ export default function App() {
   // --- HLAVNÍ APLIKACE ---
   return (
     <div className="wrap">
-      {/* HLAVIČKA S PREPÍNÁNÍM ZÁLOŽEK */}
+      {/* HLAVIČKA S PŘEPÍNÁNÍM ZÁLOŽEK */}
       <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '24px' }}>
           <h1
@@ -268,6 +269,18 @@ export default function App() {
           >
             Kluci
           </span>
+          <span
+            onClick={() => setActiveTab('investice')}
+            style={{
+              cursor: 'pointer',
+              fontSize: '20px',
+              fontWeight: 700,
+              color: activeTab === 'investice' ? 'var(--amber)' : 'var(--text-dim)',
+              transition: 'color 0.2s',
+            }}
+          >
+            Investice a dluhy
+          </span>
         </div>
         <button onClick={handleLogout} className="logout">Odhlásit</button>
       </header>
@@ -275,6 +288,8 @@ export default function App() {
       {/* OBSAH PODLE ZVOLENÉ ZÁLOŽKY */}
       {activeTab === 'kluci' ? (
         <KidsPage />
+      ) : activeTab === 'investice' ? (
+        <InvestmentsPage />
       ) : (
         <>
           <div className="hero">
